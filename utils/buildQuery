@@ -26,7 +26,6 @@ function applyQueryParams(model, req, defaultLimit) {
   return { query: q, count };
 }
 
-// NEW: works for Mongoose v5/6 (getQuery) and v7+ (getFilter)
 function getQueryFilter(q) {
   if (q && typeof q.getFilter === 'function') return q.getFilter(); // v7+
   if (q && typeof q.getQuery  === 'function') return q.getQuery();  // v5/6

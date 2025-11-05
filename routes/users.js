@@ -6,7 +6,6 @@ var mongoose = require('mongoose');
 var router = express.Router();
 var apply = require('../utils/buildQuery').applyQueryParams;
 var getQueryFilter = require('../utils/buildQuery').getQueryFilter;
-// GET /api/users
 router.get('/', async function(req, res) {
   try {
     const { query, count } = apply(User, req, undefined);
@@ -23,7 +22,6 @@ router.get('/', async function(req, res) {
   }
 });
 
-// POST /api/users (x-www-form-urlencoded friendly)
 router.post('/', async function(req, res) {
   try {
     const name = req.body.name;
@@ -59,7 +57,6 @@ router.get('/:id', async function(req, res) {
   }
 });
 
-// PUT /api/users/:id  (replace; keep two-way references)
 router.put('/:id', async function(req, res) {
   const session = await User.startSession();
   session.startTransaction();
@@ -130,7 +127,6 @@ router.put('/:id', async function(req, res) {
   }
 });
 
-// DELETE /api/users/:id  (unassign their tasks)
 router.delete('/:id', async function(req, res) {
   const session = await User.startSession();
   session.startTransaction();

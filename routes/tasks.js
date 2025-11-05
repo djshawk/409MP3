@@ -7,7 +7,6 @@ var router = express.Router();
 var apply = require('../utils/buildQuery').applyQueryParams;
 var getQueryFilter = require('../utils/buildQuery').getQueryFilter;
 
-// GET /api/tasks (default limit=100)
 router.get('/', async function(req, res) {
   try {
     const { query, count } = apply(Task, req, 100);
@@ -24,7 +23,6 @@ router.get('/', async function(req, res) {
   }
 });
 
-// POST /api/tasks  (x-www-form-urlencoded friendly)
 router.post('/', async function(req, res) {
   const session = await Task.startSession();
   session.startTransaction();
@@ -75,7 +73,6 @@ router.post('/', async function(req, res) {
   }
 });
 
-// GET /api/tasks/:id
 router.get('/:id', async function(req, res) {
   try {
     const sel = (req.query.select || req.query.filter) ? JSON.parse(req.query.select || req.query.filter) : null;
@@ -90,7 +87,6 @@ router.get('/:id', async function(req, res) {
   }
 });
 
-// PUT /api/tasks/:id  (replace; keep two-way)
 router.put('/:id', async function(req, res) {
   const session = await Task.startSession();
   session.startTransaction();
@@ -161,7 +157,6 @@ router.put('/:id', async function(req, res) {
   }
 });
 
-// DELETE /api/tasks/:id
 router.delete('/:id', async function(req, res) {
   const session = await Task.startSession();
   session.startTransaction();
