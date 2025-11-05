@@ -1,0 +1,472 @@
+{
+  "info": {
+    "name": "Llama.io MP3 (Explicit Tests)",
+    "_postman_id": "1a3f0b5e-2fef-4d5f-9a1f-1e3dd0a7b9c2",
+    "description": "Complete MP3 API tests with explicit request-level tests for users/tasks CRUD, query params, two-way refs, and errors.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "USERS",
+      "item": [
+        {
+          "name": "Users: GET list",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users" },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('shape', () => { pm.expect(j).to.have.property('message'); pm.expect(j).to.have.property('data'); });",
+              "pm.test('data is array', () => pm.expect(Array.isArray(j.data)).to.be.true);"
+            ]}}
+          ]
+        },
+        {
+          "name": "Users: GET where (email match)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users?where={\"email\":\"alice@example.com\"}" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const arr = pm.response.json().data;",
+              "pm.test('array', () => pm.expect(Array.isArray(arr)).to.be.true);",
+              "if (arr.length) pm.test('all emails match filter', () => arr.forEach(u => pm.expect(u.email).to.eql('alice@example.com')));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: GET sort (name asc)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users?sort={\"name\":1}&limit=10" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const arr = pm.response.json().data;",
+              "pm.test('sorted asc by name (if >=2)', () => {",
+              "  for (let i=1;i<arr.length;i++){",
+              "    if (arr[i-1].name && arr[i].name) pm.expect(arr[i-1].name.localeCompare(arr[i].name)).to.be.at.most(0);",
+              "  }",
+              "});"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: GET select (projection)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users?select={\"_id\":0,\"name\":1}&limit=3" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const arr = pm.response.json().data;",
+              "pm.test('projection applied', () => {",
+              "  if (arr[0]) { pm.expect(arr[0]).to.not.have.property('_id'); pm.expect(arr[0]).to.have.property('name'); }",
+              "});"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: GET skip+limit",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users?skip=5&limit=5" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const arr = pm.response.json().data;",
+              "pm.test('array length <= 5', () => pm.expect(arr.length).to.be.at.most(5));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: GET count=true",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users?count=true" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('count is number', () => pm.expect(typeof pm.response.json().data).to.eql('number'));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: GET filter alias (legacy projection)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users?filter={\"_id\":1}" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const arr = pm.response.json().data;",
+              "pm.test('array', () => pm.expect(Array.isArray(arr)).to.be.true);",
+              "if (arr[0]) pm.test('has _id field due to projection', () => pm.expect(arr[0]).to.have.property('_id'));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: POST create (Alice)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [
+              { "key": "name", "value": "Alice Doe" },
+              { "key": "email", "value": "alice@example.com" }
+            ]},
+            "url": "{{baseUrl}}/users"
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "const d = pm.response.json().data;",
+              "pm.test('has _id', () => pm.expect(d).to.have.property('_id'));",
+              "pm.environment.set('userId', d._id);"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: GET by id (+select)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users/{{userId}}?select={\"_id\":1,\"name\":1,\"email\":1,\"pendingTasks\":1}" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('correct id', () => pm.expect(d._id).to.eql(pm.environment.get('userId')));",
+              "pm.test('projection applied', () => { pm.expect(d).to.have.property('name'); pm.expect(d).to.have.property('email'); pm.expect(d).to.have.property('pendingTasks'); });"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: PUT replace (no pendingTasks yet)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [
+              { "key": "name", "value": "Alice Updated" },
+              { "key": "email", "value": "alice.updated@example.com" }
+            ]},
+            "url": "{{baseUrl}}/users/{{userId}}"
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('fields updated', () => { pm.expect(d.name).to.eql('Alice Updated'); pm.expect(d.email).to.eql('alice.updated@example.com'); });"
+            ], "type": "text/javascript" } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TASKS",
+      "item": [
+        {
+          "name": "Tasks: GET list",
+          "request": { "method": "GET", "url": "{{baseUrl}}/tasks" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const arr = pm.response.json().data;",
+              "pm.test('array', () => pm.expect(Array.isArray(arr)).to.be.true);"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: GET where completed=true",
+          "request": { "method": "GET", "url": "{{baseUrl}}/tasks?where={\"completed\":true}&limit=10" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const arr = pm.response.json().data;",
+              "if (arr.length) pm.test('all completed true', () => arr.forEach(t => pm.expect(t.completed).to.be.true));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: GET sort by deadline desc",
+          "request": { "method": "GET", "url": "{{baseUrl}}/tasks?sort={\"deadline\":-1}&limit=10" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const arr = pm.response.json().data;",
+              "pm.test('sorted desc by deadline (if >=2)', () => {",
+              "  for (let i=1;i<arr.length;i++){",
+              "    if (arr[i-1].deadline && arr[i].deadline) pm.expect(new Date(arr[i-1].deadline).getTime()).to.be.at.least(new Date(arr[i].deadline).getTime());",
+              "  }",
+              "});"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: GET select (projection)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/tasks?select={\"name\":1,\"deadline\":1,\"_id\":0}&limit=3" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const arr = pm.response.json().data;",
+              "if (arr[0]) pm.test('projection applied', () => { pm.expect(arr[0]).to.have.property('name'); pm.expect(arr[0]).to.have.property('deadline'); pm.expect(arr[0]).to.not.have.property('_id'); });"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: GET skip+limit",
+          "request": { "method": "GET", "url": "{{baseUrl}}/tasks?skip=20&limit=20" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const arr = pm.response.json().data;",
+              "pm.test('array length <= 20', () => pm.expect(arr.length).to.be.at.most(20));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: GET count=true",
+          "request": { "method": "GET", "url": "{{baseUrl}}/tasks?count=true" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('count is number', () => pm.expect(typeof pm.response.json().data).to.eql('number'));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: GET filter alias (legacy projection)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/tasks?filter={\"_id\":1}" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const arr = pm.response.json().data;",
+              "pm.test('array', () => pm.expect(Array.isArray(arr)).to.be.true);",
+              "if (arr[0]) pm.test('has _id field due to projection', () => pm.expect(arr[0]).to.have.property('_id'));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: POST create (unassigned)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [
+              { "key": "name", "value": "Write Report" },
+              { "key": "deadline", "value": "{{deadlineMs}}" },
+              { "key": "completed", "value": "false" },
+              { "key": "description", "value": "Finish writeup" }
+            ]},
+            "url": "{{baseUrl}}/tasks"
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "const d = pm.response.json().data;",
+              "pm.test('has _id', () => pm.expect(d).to.have.property('_id'));",
+              "pm.environment.set('taskId', d._id);",
+              "pm.test('unassigned by default', () => { pm.expect(d.assignedUser || '').to.eql(''); pm.expect(d.assignedUserName || 'unassigned').to.be.a('string'); });"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: GET by id (+select)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/tasks/{{taskId}}?select={\"_id\":1,\"name\":1,\"assignedUser\":1,\"completed\":1}" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('correct id', () => pm.expect(pm.response.json().data._id).to.eql(pm.environment.get('taskId')));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: PUT assign to user (two-way)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [
+              { "key": "name", "value": "Write Report" },
+              { "key": "deadline", "value": "{{deadlineMs}}" },
+              { "key": "completed", "value": "false" },
+              { "key": "assignedUser", "value": "{{userId}}" }
+            ]},
+            "url": "{{baseUrl}}/tasks/{{taskId}}"
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('assignedUser set', () => pm.expect(d.assignedUser).to.eql(pm.environment.get('userId')));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: verify pendingTasks contains task",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users/{{userId}}?select={\"pendingTasks\":1}" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('pendingTasks includes taskId', () => pm.expect(d.pendingTasks).to.include(pm.environment.get('taskId')));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: PUT mark completed (remove from pending)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [
+              { "key": "name", "value": "Write Report" },
+              { "key": "deadline", "value": "{{deadlineMs}}" },
+              { "key": "completed", "value": "true" },
+              { "key": "assignedUser", "value": "{{userId}}" }
+            ]},
+            "url": "{{baseUrl}}/tasks/{{taskId}}"
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('marked completed', () => pm.expect(pm.response.json().data.completed).to.eql(true));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: verify pendingTasks does NOT contain task",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users/{{userId}}?select={\"pendingTasks\":1}" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('pendingTasks no longer includes taskId', () => pm.expect(d.pendingTasks).to.not.include(pm.environment.get('taskId')));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: POST create task#2 (unassigned)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [
+              { "key": "name", "value": "Prep Slides" },
+              { "key": "deadline", "value": "1767312000000" },
+              { "key": "completed", "value": "false" },
+              { "key": "description", "value": "Deck" }
+            ]},
+            "url": "{{baseUrl}}/tasks"
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "pm.environment.set('taskId2', pm.response.json().data._id);"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: PUT set pendingTasks = [task#2] (two-way from user side)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [
+              { "key": "name", "value": "Alice Final" },
+              { "key": "email", "value": "alice.final@example.com" },
+              { "key": "pendingTasks", "value": "{{taskId2}}" }
+            ]},
+            "url": "{{baseUrl}}/users/{{userId}}"
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('pendingTasks updated on user', () => pm.expect(d.pendingTasks.map(String)).to.include(pm.environment.get('taskId2')));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: verify task#2 now assigned to user",
+          "request": { "method": "GET", "url": "{{baseUrl}}/tasks/{{taskId2}}?select={\"assignedUser\":1,\"assignedUserName\":1,\"completed\":1}" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('assigned to userId', () => pm.expect(d.assignedUser).to.eql(pm.environment.get('userId')));",
+              "pm.test('not completed', () => pm.expect(d.completed).to.eql(false));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: DELETE task#1 (cleanup)",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/tasks/{{taskId}}" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK deleted', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "DELETE USER & VERIFY UNASSIGN",
+      "item": [
+        {
+          "name": "Users: DELETE {{userId}}",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/users/{{userId}}" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK user deleted', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: task#2 is now unassigned",
+          "request": { "method": "GET", "url": "{{baseUrl}}/tasks/{{taskId2}}?select={\"assignedUser\":1,\"assignedUserName\":1}" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('unassigned', () => { pm.expect(d.assignedUser).to.eql(''); pm.expect(d.assignedUserName).to.eql('unassigned'); });"
+            ], "type": "text/javascript" } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ERROR CASES",
+      "item": [
+        {
+          "name": "Users: GET non-existent id (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users/656000000000000000000000" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('404 not found', () => pm.response.to.have.status(404));",
+              "const j = pm.response.json();",
+              "pm.test('has message & data', () => { pm.expect(j).to.have.property('message'); pm.expect(j).to.have.property('data'); });"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: GET invalid id (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users/not-an-id" },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('404 invalid treated as not found', () => pm.response.to.have.status(404));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Users: POST missing fields (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [] },
+            "url": "{{baseUrl}}/users"
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('400 bad request', () => pm.response.to.have.status(400));"
+            ], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "Tasks: POST missing deadline (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [{ "key": "name", "value": "Bad Task" }] },
+            "url": "{{baseUrl}}/tasks"
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "pm.test('400 bad request', () => pm.response.to.have.status(400));"
+            ], "type": "text/javascript" } }
+          ]
+        }
+      ]
+    }
+  ]
+}

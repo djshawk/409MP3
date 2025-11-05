@@ -13,8 +13,17 @@ var app = express();
 // Use environment defined port or 3000
 var port = process.env.PORT || 3000;
 
-// Connect to a MongoDB --> Uncomment this once you have a connection string!!
-//mongoose.connect(process.env.MONGODB_URI,  { useNewUrlParser: true });
+// Connect to MongoDB (SRV URI from .env)
+mongoose.set('strictQuery', true);
+mongoose.connect(process.env.MONGODB_URI, { dbName: 'mp3' })
+  .then(() => {
+    console.log('✅ Mongo connected to DB:', mongoose.connection.name);
+  })
+  .catch(err => {
+    console.error('❌ Mongo connection error:', err.message);
+    process.exit(1);
+  });
+
 
 // Allow CORS so that backend and frontend could be put on different servers
 var allowCrossDomain = function (req, res, next) {
@@ -26,12 +35,10 @@ var allowCrossDomain = function (req, res, next) {
 app.use(allowCrossDomain);
 
 // Use the body-parser package in our application
-app.use(bodyParser.urlencoded({
-    extended: true
-}));
+app.use(bodyParser.urlencoded({ extended: true })); // needed for dbFill.py
 app.use(bodyParser.json());
 
-// Use routes as a module (see index.js)
+// Use routes as a module (see routes/index.js)
 require('./routes')(app, router);
 
 // Start the server

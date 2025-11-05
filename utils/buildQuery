@@ -1,0 +1,36 @@
+// utils/buildQuery.js
+function safeParseJSON(value, fallback) {
+  if (value == null) return fallback;
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
+function applyQueryParams(model, req, defaultLimit) {
+  const where   = safeParseJSON(req.query.where,   {});
+  const selectQ = safeParseJSON(req.query.select,  safeParseJSON(req.query.filter, null)); // support legacy ?filter=
+  const sort    = safeParseJSON(req.query.sort,    null);
+  const skip    = req.query.skip  ? Number(req.query.skip)  : undefined;
+  const limitQ  = req.query.limit ? Number(req.query.limit) : undefined;
+  const count   = String(req.query.count || 'false').toLowerCase() === 'true';
+
+  let q = model.find(where);
+  if (sort)    q = q.sort(sort);
+  if (selectQ) q = q.select(selectQ);
+  if (typeof skip === 'number') q = q.skip(skip);
+
+  if (!count) {
+    const limitFinal = typeof limitQ === 'number'
+      ? limitQ
+      : (typeof defaultLimit === 'number' ? defaultLimit : undefined);
+    if (typeof limitFinal === 'number') q = q.limit(limitFinal);
+  }
+  return { query: q, count };
+}
+
+// NEW: works for Mongoose v5/6 (getQuery) and v7+ (getFilter)
+function getQueryFilter(q) {
+  if (q && typeof q.getFilter === 'function') return q.getFilter(); // v7+
+  if (q && typeof q.getQuery  === 'function') return q.getQuery();  // v5/6
+  return {};
+}
+
+module.exports = { applyQueryParams, safeParseJSON, getQueryFilter };
