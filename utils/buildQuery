@@ -1,33 +1,31 @@
-function safeParseJSON(value, fallback) {
-  if (value == null) return fallback;
-  try { return JSON.parse(value); } catch { return fallback; }
+function safeParseJSON(v, fb) {
+  if (v == null) return fb;
+  try { return JSON.parse(v); } catch { return fb; }
 }
 
-function applyQueryParams(model, req, defaultLimit) {
-  const where   = safeParseJSON(req.query.where,   {});
-  const selectQ = safeParseJSON(req.query.select,  safeParseJSON(req.query.filter, null)); 
-  const sort    = safeParseJSON(req.query.sort,    null);
-  const skip    = req.query.skip  ? Number(req.query.skip)  : undefined;
-  const limitQ  = req.query.limit ? Number(req.query.limit) : undefined;
-  const count   = String(req.query.count || 'false').toLowerCase() === 'true';
+function applyQueryParams(m, r, dLim) {
+  const w   = safeParseJSON(r.query.where, {});
+  const sQ  = safeParseJSON(r.query.select, safeParseJSON(r.query.filter, null));
+  const so  = safeParseJSON(r.query.sort, null);
+  const sk  = r.query.skip  ? Number(r.query.skip)  : undefined;
+  const lim = r.query.limit ? Number(r.query.limit) : undefined;
+  const cnt = String(r.query.count || 'false').toLowerCase() === 'true';
 
-  let q = model.find(where);
-  if (sort)    q = q.sort(sort);
-  if (selectQ) q = q.select(selectQ);
-  if (typeof skip === 'number') q = q.skip(skip);
+  let q = m.find(w);
+  if (so) q = q.sort(so);
+  if (sQ) q = q.select(sQ);
+  if (typeof sk === 'number') q = q.skip(sk);
 
-  if (!count) {
-    const limitFinal = typeof limitQ === 'number'
-      ? limitQ
-      : (typeof defaultLimit === 'number' ? defaultLimit : undefined);
-    if (typeof limitFinal === 'number') q = q.limit(limitFinal);
+  if (!cnt) {
+    const lf = typeof lim === 'number' ? lim : (typeof dLim === 'number' ? dLim : undefined);
+    if (typeof lf === 'number') q = q.limit(lf);
   }
-  return { query: q, count };
+  return { query: q, count: cnt };
 }
 
 function getQueryFilter(q) {
-  if (q && typeof q.getFilter === 'function') return q.getFilter(); 
-  if (q && typeof q.getQuery  === 'function') return q.getQuery();  
+  if (q && typeof q.getFilter === 'function') return q.getFilter();
+  if (q && typeof q.getQuery  === 'function') return q.getQuery();
   return {};
 }
 

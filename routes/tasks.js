@@ -1,191 +1,214 @@
-// routes/tasks.js
 var express = require('express');
 var Task = require('../models/task');
 var User = require('../models/user');
 var mongoose = require('mongoose');
 var router = express.Router();
-var apply = require('../utils/buildQuery').applyQueryParams;
-var getQueryFilter = require('../utils/buildQuery').getQueryFilter;
+var bqp = require('../utils/buildQuery');
+var apply = bqp.applyQueryParams;
+var getQueryFilter = bqp.getQueryFilter;
 
-router.get('/', async function(req, res) {
+function badBool(v) {
+  return String(v || 'false').toLowerCase() === 'true';
+}
+
+router.get('/', async function (req, res) {
   try {
-    const { query, count } = apply(Task, req, 100);
-    if (count) {
-      const filter = getQueryFilter(query);       
-      const n = await Task.countDocuments(filter);
-      return res.status(200).json({ message: 'OK', data: n });
+    const weird = apply(Task, req, 100);
+    const q = weird.query;
+    const c = weird.count;
+    if (c) {
+      const f = getQueryFilter(q);
+      const num = await Task.countDocuments(f);
+      return res.status(200).json({ message: 'OK', data: num });
     }
-    const docs = await query.exec();
-    return res.status(200).json({ message: 'OK', data: docs });
+    const rows = await q.exec();
+    return res.status(200).json({ message: 'OK', data: rows });
   } catch (e) {
-    console.error('GET /api/tasks failed:', e.message);
+    console.error('GET /api/tasks failed:', e && e.message);
     return res.status(500).json({ message: 'server error', data: null });
   }
 });
 
-router.post('/', async function(req, res) {
-  const session = await Task.startSession();
-  session.startTransaction();
+router.post('/', async function (req, res) {
+  const s = await Task.startSession();
+  s.startTransaction();
   try {
-    const name = req.body.name;
-    const description = req.body.description || '';
-    const deadlineMs = req.body.deadline;
-    const completed = String(req.body.completed || 'false').toLowerCase() === 'true';
-    const assignedUser = req.body.assignedUser || '';
+    var nm = req.body.name;
+    var desc = req.body.description || '';
+    var ddl = req.body.deadline;
+    var done = badBool(req.body.completed);
+    var asg = req.body.assignedUser || '';
 
-    if (!name || !deadlineMs) {
-      await session.abortTransaction(); session.endSession();
+    if (!nm || !ddl) {
+      await s.abortTransaction();
+      s.endSession();
       return res.status(400).json({ message: 'name and deadline are required', data: null });
     }
 
-    let assignedUserName = 'unassigned';
-    if (assignedUser) {
-      const user = await User.findById(assignedUser).session(session);
-      if (!user) {
-        await session.abortTransaction(); session.endSession();
+    var asgName = 'unassigned';
+    if (asg) {
+      const u = await User.findById(asg).session(s);
+      if (!u) {
+        await s.abortTransaction();
+        s.endSession();
         return res.status(400).json({ message: 'assignedUser does not exist', data: null });
       }
-      assignedUserName = user.name;
+      asgName = u.name;
     }
 
-    const [task] = await Task.create([{
-      name,
-      description,
-      deadline: new Date(Number(deadlineMs)),
-      completed,
-      assignedUser: assignedUser || '',
-      assignedUserName
-    }], { session });
+    const arr = await Task.create([{
+      name: nm,
+      description: desc,
+      deadline: new Date(Number(ddl)),
+      completed: done,
+      assignedUser: asg || '',
+      assignedUserName: asgName
+    }], { session: s });
+    const t = arr[0];
 
-    if (assignedUser && !completed) {
+    if (asg && !done) {
       await User.updateOne(
-        { _id: assignedUser },
-        { $addToSet: { pendingTasks: String(task._id) } },
-        { session }
+        { _id: asg },
+        { $addToSet: { pendingTasks: String(t._id) } },
+        { session: s }
       );
     }
 
-    await session.commitTransaction(); session.endSession();
-    res.status(201).json({ message: 'created', data: task });
-  } catch (e) {
-    await session.abortTransaction(); session.endSession();
-    res.status(500).json({ message: 'server error', data: null });
+    await s.commitTransaction();
+    s.endSession();
+    return res.status(201).json({ message: 'created', data: t });
+  } catch (err) {
+    await s.abortTransaction();
+    s.endSession();
+    return res.status(500).json({ message: 'server error', data: null });
   }
 });
 
-router.get('/:id', async function(req, res) {
+router.get('/:id', async function (req, res) {
   try {
-    const sel = (req.query.select || req.query.filter) ? JSON.parse(req.query.select || req.query.filter) : null;
-    if (!mongoose.isValidObjectId(req.params.id))
+    var sl = (req.query.select || req.query.filter) ? JSON.parse(req.query.select || req.query.filter) : null;
+    if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(404).json({ message: 'task not found', data: null });
-
-    const doc = await Task.findById(req.params.id).select(sel || {});
-    if (!doc) return res.status(404).json({ message: 'task not found', data: null });
-    res.status(200).json({ message: 'OK', data: doc });
+    }
+    const d = await Task.findById(req.params.id).select(sl || {});
+    if (!d) {
+      return res.status(404).json({ message: 'task not found', data: null });
+    }
+    return res.status(200).json({ message: 'OK', data: d });
   } catch (e) {
-    res.status(404).json({ message: 'task not found', data: null });
+    return res.status(404).json({ message: 'task not found', data: null });
   }
 });
 
-router.put('/:id', async function(req, res) {
-  const session = await Task.startSession();
-  session.startTransaction();
+router.put('/:id', async function (req, res) {
+  const S = await Task.startSession();
+  S.startTransaction();
   try {
-    const id = req.params.id;
-    if (!mongoose.isValidObjectId(id)) {
-      await session.abortTransaction(); session.endSession();
+    const i = req.params.id;
+    if (!mongoose.isValidObjectId(i)) {
+      await S.abortTransaction();
+      S.endSession();
       return res.status(404).json({ message: 'task not found', data: null });
     }
 
-    const name = req.body.name;
-    const description = req.body.description || '';
-    const deadlineMs = req.body.deadline;
-    const completed = String(req.body.completed || 'false').toLowerCase() === 'true';
-    const assignedUser = req.body.assignedUser || '';
+    var newName = req.body.name;
+    var newDesc = req.body.description || '';
+    var newDeadline = req.body.deadline;
+    var newDone = badBool(req.body.completed);
+    var newUser = req.body.assignedUser || '';
 
-    if (!name || !deadlineMs) {
-      await session.abortTransaction(); session.endSession();
+    if (!newName || !newDeadline) {
+      await S.abortTransaction();
+      S.endSession();
       return res.status(400).json({ message: 'name and deadline are required', data: null });
     }
 
-    const task = await Task.findById(id).session(session);
-    if (!task) {
-      await session.abortTransaction(); session.endSession();
+    var T = await Task.findById(i).session(S);
+    if (!T) {
+      await S.abortTransaction();
+      S.endSession();
       return res.status(404).json({ message: 'task not found', data: null });
     }
 
-    if (task.assignedUser && (task.assignedUser !== assignedUser || completed)) {
+    if (T.assignedUser && (T.assignedUser !== newUser || newDone)) {
       await User.updateOne(
-        { _id: task.assignedUser },
-        { $pull: { pendingTasks: String(task._id) } },
-        { session }
+        { _id: T.assignedUser },
+        { $pull: { pendingTasks: String(T._id) } },
+        { session: S }
       );
     }
 
-    let assignedUserName = 'unassigned';
-    if (assignedUser) {
-      const user = await User.findById(assignedUser).session(session);
-      if (!user) {
-        await session.abortTransaction(); session.endSession();
+    var whoName = 'unassigned';
+    if (newUser) {
+      const maybe = await User.findById(newUser).session(S);
+      if (!maybe) {
+        await S.abortTransaction();
+        S.endSession();
         return res.status(400).json({ message: 'assignedUser does not exist', data: null });
       }
-      assignedUserName = user.name;
-
-      if (!completed) {
+      whoName = maybe.name;
+      if (!newDone) {
         await User.updateOne(
-          { _id: assignedUser },
-          { $addToSet: { pendingTasks: String(task._id) } },
-          { session }
+          { _id: newUser },
+          { $addToSet: { pendingTasks: String(T._id) } },
+          { session: S }
         );
       }
     }
 
-    task.name = name;
-    task.description = description;
-    task.deadline = new Date(Number(deadlineMs));
-    task.completed = completed;
-    task.assignedUser = assignedUser;
-    task.assignedUserName = assignedUserName;
+    T.name = newName;
+    T.description = newDesc;
+    T.deadline = new Date(Number(newDeadline));
+    T.completed = newDone;
+    T.assignedUser = newUser;
+    T.assignedUserName = whoName;
 
-    await task.save({ session });
-    await session.commitTransaction(); session.endSession();
-    res.status(200).json({ message: 'updated', data: task });
-  } catch (e) {
-    await session.abortTransaction(); session.endSession();
-    res.status(500).json({ message: 'server error', data: null });
+    await T.save({ session: S });
+
+    await S.commitTransaction();
+    S.endSession();
+    return res.status(200).json({ message: 'updated', data: T });
+  } catch (err) {
+    await S.abortTransaction();
+    S.endSession();
+    return res.status(500).json({ message: 'server error', data: null });
   }
 });
 
-router.delete('/:id', async function(req, res) {
-  const session = await Task.startSession();
-  session.startTransaction();
+router.delete('/:id', async function (req, res) {
+  const sesh = await Task.startSession();
+  sesh.startTransaction();
   try {
-    const id = req.params.id;
-    if (!mongoose.isValidObjectId(id)) {
-      await session.abortTransaction(); session.endSession();
+    const maybeId = req.params.id;
+    if (!mongoose.isValidObjectId(maybeId)) {
+      await sesh.abortTransaction();
+      sesh.endSession();
       return res.status(404).json({ message: 'task not found', data: null });
     }
 
-    const task = await Task.findById(id).session(session);
-    if (!task) {
-      await session.abortTransaction(); session.endSession();
+    const victim = await Task.findById(maybeId).session(sesh);
+    if (!victim) {
+      await sesh.abortTransaction();
+      sesh.endSession();
       return res.status(404).json({ message: 'task not found', data: null });
     }
 
-    if (task.assignedUser) {
+    if (victim.assignedUser) {
       await User.updateOne(
-        { _id: task.assignedUser },
-        { $pull: { pendingTasks: String(task._id) } },
-        { session }
+        { _id: victim.assignedUser },
+        { $pull: { pendingTasks: String(victim._id) } },
+        { session: sesh }
       );
     }
 
-    await task.deleteOne({ session });
-    await session.commitTransaction(); session.endSession();
-    res.status(200).json({ message: 'deleted', data: null });
-  } catch (e) {
-    await session.abortTransaction(); session.endSession();
-    res.status(500).json({ message: 'server error', data: null });
+    await victim.deleteOne({ session: sesh });
+    await sesh.commitTransaction();
+    sesh.endSession();
+    return res.status(200).json({ message: 'deleted', data: null });
+  } catch (oops) {
+    await sesh.abortTransaction();
+    sesh.endSession();
+    return res.status(500).json({ message: 'server error', data: null });
   }
 });
 
