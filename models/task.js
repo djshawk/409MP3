@@ -6,7 +6,7 @@ var TaskSchema = new mongoose.Schema(
     description: { type: String, default: '' },
     deadline:    { type: Date, required: [true, 'deadline is required'] },
     completed:   { type: Boolean, default: false },
-    assignedUser:     { type: String, default: '' },            // user _id
+    assignedUser:     { type: String, default: '' },        
     assignedUserName: { type: String, default: 'unassigned' },
     dateCreated:      { type: Date, default: Date.now }
   },

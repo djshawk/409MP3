@@ -11,7 +11,7 @@ router.get('/', async function(req, res) {
   try {
     const { query, count } = apply(Task, req, 100);
     if (count) {
-      const filter = getQueryFilter(query);       // << use safe filter accessor
+      const filter = getQueryFilter(query);       
       const n = await Task.countDocuments(filter);
       return res.status(200).json({ message: 'OK', data: n });
     }
@@ -29,7 +29,7 @@ router.post('/', async function(req, res) {
   try {
     const name = req.body.name;
     const description = req.body.description || '';
-    const deadlineMs = req.body.deadline; // dbFill sends ms epoch
+    const deadlineMs = req.body.deadline;
     const completed = String(req.body.completed || 'false').toLowerCase() === 'true';
     const assignedUser = req.body.assignedUser || '';
 
@@ -114,7 +114,6 @@ router.put('/:id', async function(req, res) {
       return res.status(404).json({ message: 'task not found', data: null });
     }
 
-    // remove from old user's pending if assignment changes or becomes completed
     if (task.assignedUser && (task.assignedUser !== assignedUser || completed)) {
       await User.updateOne(
         { _id: task.assignedUser },

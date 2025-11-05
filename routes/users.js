@@ -10,7 +10,7 @@ router.get('/', async function(req, res) {
   try {
     const { query, count } = apply(User, req, undefined);
     if (count) {
-      const filter = getQueryFilter(query);       // << use safe filter accessor
+      const filter = getQueryFilter(query);   
       const n = await User.countDocuments(filter);
       return res.status(200).json({ message: 'OK', data: n });
     }
